@@ -9,8 +9,8 @@ import gspread
 st.title("Site Listing Management")
 try:
     # Authenticate using Streamlit Secrets
-    credentials = Credentials.from_service_account_info(st.secrets["gcp_service_account"])
-    client = gspread.authorize(credentials)
+    credentials = st.secrets["gcp_service_account"]
+    client = gspread.service_account_from_dict(credentials)
 
     # Load Google Sheet
     sheet = client.open("Eleport google maps").Sheet1  # Replace with your Google Sheet name
