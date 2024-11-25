@@ -77,18 +77,20 @@ def extract_longitude(geometry):
             return None
     return None
 
-df['latitude'] = df['geometry_db'].apply(extract_latitude)
-df['longitude'] = df['geometry_db'].apply(extract_longitude)
+# Extract latitude and longitude, with fallback to geometry_google if geometry_db is empty
+df['latitude'] = df['geometry_db'].apply(extract_latitude).fillna(
+    df['geometry_google'].apply(extract_latitude)
+)
+df['longitude'] = df['geometry_db'].apply(extract_longitude).fillna(
+    df['geometry_google'].apply(extract_longitude)
+)
 
 # Identify rows with invalid geometry
 invalid_geometry_rows = df[df['latitude'].isnull() | df['longitude'].isnull()]
-st.write("Invalid Geometry Rows", invalid_geometry_rows)
 
 # Combine name, street, and city for filtering and display
 df['station_filter'] = df['name'] + " - " + df['street_db'] + ", " + df['city_db']
 
-# Dashboard Title
-st.title("Site Listing Management")
 
 # Section 1: Stacked Bar Chart Summary
 st.header("Summary of Missing Stations")
@@ -130,7 +132,9 @@ df['hover_info'] = df['name'] + " - " + df['street_db'] + ", " + df['city_db']
 
 # Colors and sizes for map points based on status and missing data
 def assign_map_category(row):
-    if row['missing_placeId']:
+    if pd.isna(row['geometry_db']) and not pd.isna(row['geometry_google']):
+        return "Fallback Location from Google"
+    elif row['missing_placeId']:
         return "Missing Location in Google Maps"
     elif row['missing_external_reference']:
         return "Missing Location in Database"
@@ -139,6 +143,7 @@ def assign_map_category(row):
     else:
         return "Discrepant"
 
+
 df['map_category'] = df.apply(assign_map_category, axis=1)
 
 # Define color mapping for categories
@@ -146,7 +151,8 @@ category_color_map = {
     "Missing Location in Google Maps": "#3498db",  # Blue
     "Missing Location in Database": "#9b59b6",     # Purple
     "Fully Correct": "#2ecc71",                    # Green
-    "Discrepant": "#e74c3c"                        # Red
+    "Discrepant": "#e74c3c",                       # Red
+    "Fallback Location from Google": "#ffa500"     # Orange
 }
 
 # Create the map with categorical colors
@@ -154,12 +160,12 @@ station_map = px.scatter_mapbox(
     df,
     lat='latitude',
     lon='longitude',
-    color='map_category',  # Use the category column for the legend
-    color_discrete_map=category_color_map,  # Assign colors to categories
+    color='map_category',
+    color_discrete_map=category_color_map,
     title="Station Locations",
     mapbox_style="carto-positron",
-    zoom=4,  # Zoom out to level 4 for a broader view
-    hover_name='hover_info'  # Show name, street, and city on hover
+    zoom=4,
+    hover_name='hover_info'
 )
 
 # Display the map
@@ -184,10 +190,15 @@ def highlight_missing(row):
         return ['background-color: lightcoral'] * len(row)
     return [''] * len(row)
 
+# Include the new column in the displayed DataFrame
+columns_to_display = [
+    'external_reference', 'name', 'street_db', 'city_db', 
+    'missing_in_google', 'missing_in_db', 
+    'connector_match', 'power_match', 'Eco-Movement Status'  # Include the new column here
+]
+
 # Apply the styling to the dataframe
-styled_table = matched_stations_sorted[
-    ['external_reference', 'name', 'street_db', 'city_db', 'missing_in_google', 'missing_in_db', 'connector_match', 'power_match']
-].style.apply(highlight_missing, axis=1)
+styled_table = matched_stations_sorted[columns_to_display].style.apply(highlight_missing, axis=1)
 
 # Display the styled dataframe
 st.dataframe(styled_table)
