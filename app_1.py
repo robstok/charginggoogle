@@ -120,7 +120,7 @@ st.dataframe(missing_google[['name', 'street_db', 'city_db', 'external_reference
 # Section 3: Missing in Database
 st.subheader("Potential Duplicates")
 missing_db = df[df['missing_external_reference']]
-st.dataframe(missing_db[['name', 'street_google', 'city_google', 'placeId','googleMapsUri']])
+st.dataframe(missing_db[['name', 'street_google', 'city_google']])
 
 # Section 4: Map of Stations
 st.subheader("Station Map")
