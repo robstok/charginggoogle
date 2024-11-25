@@ -186,7 +186,7 @@ def highlight_missing(row):
 
 # Apply the styling to the dataframe
 styled_table = matched_stations_sorted[
-    ['external_reference', 'name', 'street_db', 'city_db', 'missing_in_google', 'missing_in_db', 'connector_match', 'power_match']
+    ['external_reference', 'name', 'street_db', 'city_db', 'missing_in_google', 'missing_in_db', 'connector_match', 'power_match', 'Eco-Movement status']
 ].style.apply(highlight_missing, axis=1)
 
 # Display the styled dataframe
