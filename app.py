@@ -111,7 +111,7 @@ stacked_bar = px.bar(
 st.plotly_chart(stacked_bar)
 
 # Section 2: Potential Duplicates
-st.subheader("Potential Duplicates")
+st.subheader("Potential Duplicates on Google Maps")
 missing_db = df[df['missing_external_reference']]
 st.dataframe(missing_db[['name', 'street_google', 'city_google', 'placeId', 'googleMapsUri']])
 
