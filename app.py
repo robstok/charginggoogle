@@ -7,7 +7,7 @@ from google.oauth2.service_account import Credentials
 import gspread
 
 # Google Sheets Setup
-st.title("Site Listing Management")
+st.title("Listing Management - Google Maps")
 
 try:
     # Authenticate with Google Sheets API using credentials and scopes
@@ -40,7 +40,7 @@ except Exception as e:
 df['connector_match'] = df['connector_match'].apply(lambda x: True if x == "TRUE" else False if x == "FALSE" else x)
 df['power_match'] = df['power_match'].apply(lambda x: True if x == "TRUE" else False if x == "FALSE" else x)
 
-# Normalize missing values in `external_reference`
+# Normalize missing values in external_reference
 df['external_reference'] = df['external_reference'].replace(["", "NULL", "N/A"], pd.NA)
 df['missing_external_reference'] = df['external_reference'].isna()
 
@@ -85,12 +85,8 @@ df['longitude'] = df['geometry_db'].apply(extract_longitude).fillna(
     df['geometry_google'].apply(extract_longitude)
 )
 
-# Identify rows with invalid geometry
-invalid_geometry_rows = df[df['latitude'].isnull() | df['longitude'].isnull()]
-
 # Combine name, street, and city for filtering and display
 df['station_filter'] = df['name'] + " - " + df['street_db'] + ", " + df['city_db']
-
 
 # Section 1: Stacked Bar Chart Summary
 st.header("Summary of Missing Stations")
@@ -114,91 +110,47 @@ stacked_bar = px.bar(
 )
 st.plotly_chart(stacked_bar)
 
-# Section 2: Missing on Google Maps
-st.subheader("Stations Missing on Google Maps")
-missing_google = df[df['missing_placeId']]
-st.dataframe(missing_google[['name', 'street_db', 'city_db', 'external_reference']])
-
-# Section 3: Missing in Database
+# Section 2: Potential Duplicates
 st.subheader("Potential Duplicates")
 missing_db = df[df['missing_external_reference']]
-st.dataframe(missing_db[['name', 'street_google', 'city_google', 'placeId','googleMapsUri']])
+st.dataframe(missing_db[['name', 'street_google', 'city_google', 'placeId', 'googleMapsUri']])
 
-# Section 4: Map of Stations
-st.subheader("Station Map")
+# Section 3: Google Maps Status per Station
+st.subheader("Google Maps Status per Station")
 
-# Add hover information
-df['hover_info'] = df['name'] + " - " + df['street_db'] + ", " + df['city_db']
+# Filter records to include only those with a valid external_reference
+df = df[df['external_reference'].notna() & (df['external_reference'].str.upper() != 'NULL')]
 
-# Colors and sizes for map points based on status and missing data
-def assign_map_category(row):
-    if pd.isna(row['geometry_db']) and not pd.isna(row['geometry_google']):
-        return "Fallback Location from Google"
-    elif row['missing_placeId']:
-        return "Missing Location in Google Maps"
-    elif row['missing_external_reference']:
-        return "Missing Location in Database"
-    elif row['status'] == "Fully Correct":
-        return "Fully Correct"
-    else:
-        return "Discrepant"
-
-
-df['map_category'] = df.apply(assign_map_category, axis=1)
-
-# Define color mapping for categories
-category_color_map = {
-    "Missing Location in Google Maps": "#3498db",  # Blue
-    "Missing Location in Database": "#9b59b6",     # Purple
-    "Fully Correct": "#2ecc71",                    # Green
-    "Discrepant": "#e74c3c",                       # Red
-    "Fallback Location from Google": "#ffa500"     # Orange
-}
-
-# Create the map with categorical colors
-station_map = px.scatter_mapbox(
-    df,
-    lat='latitude',
-    lon='longitude',
-    color='map_category',
-    color_discrete_map=category_color_map,
-    title="Station Locations",
-    mapbox_style="carto-positron",
-    zoom=4,
-    hover_name='hover_info'
-)
-
-# Display the map
-st.plotly_chart(station_map)
-
-## Section 5: Detailed Discrepancy Table
-st.subheader("Detailed Discrepancy Table")
-
-# Filter for stations with no missing locations
-matched_stations = df[
-    ~df['missing_placeId'] & ~df['missing_external_reference']
+# Add new columns with default False values for missing entries
+new_columns = [
+    'Live on Google Maps', 'Status live on Google Maps', 'Coordinates correct',
+    'Connectors & Power correct', 'Phone number correct', 'Website correct'
 ]
+for col in new_columns:
+    df[col] = df[col].fillna(False)
 
-# Order the table by connector_match and then power_match
-matched_stations_sorted = matched_stations.sort_values(
-    by=['connector_match', 'power_match'], ascending=[True, True]
-)
+# Normalize the boolean columns to handle "True"/"False" strings
+bool_columns = [
+    'Live on Google Maps', 'Status live on Google Maps', 'Coordinates correct',
+    'Connectors & Power correct', 'Phone number correct', 'Website correct'
+]
+for col in bool_columns:
+    df[col] = df[col].apply(lambda x: x.strip().lower() == 'true' if isinstance(x, str) else False)
 
-# Highlight rows with missing data
-def highlight_missing(row):
-    if row['connector_match'] != True or row['power_match'] != True:
+# Highlight rows with any False value in the specified columns
+def highlight_false(row):
+    if any(row[col] == False for col in bool_columns):  # Highlight if any column is False
         return ['background-color: lightcoral'] * len(row)
     return [''] * len(row)
 
-# Include the new column in the displayed DataFrame
-columns_to_display = [
-    'external_reference', 'name', 'street_db', 'city_db', 
-    'missing_in_google', 'missing_in_db', 
-    'connector_match', 'power_match', 'Eco-Movement Status'  # Include the new column here
-]
+# Sort the DataFrame to prioritize rows with False values in the specified order
+df_sorted = df.sort_values(
+    by=bool_columns,  # Sort by the specified columns in the provided order
+    ascending=True  # False (treated as lower) comes before True
+)
 
-# Apply the styling to the dataframe
-styled_table = matched_stations_sorted[columns_to_display].style.apply(highlight_missing, axis=1)
+# Display the table with the specified columns
+columns_to_display = ['name', 'street_db', 'city_db'] + bool_columns + ['Eco-Movement Status']
+styled_table = df_sorted[columns_to_display].style.apply(highlight_false, axis=1)
+st.dataframe(styled_table, use_container_width=True)
 
-# Display the styled dataframe
-st.dataframe(styled_table)
