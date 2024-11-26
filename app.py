@@ -137,11 +137,18 @@ bool_columns = [
 for col in bool_columns:
     df[col] = df[col].apply(lambda x: x.strip().lower() == 'true' if isinstance(x, str) else False)
 
-# Highlight rows with any False value in the specified columns
-def highlight_false(row):
-    if any(row[col] == False for col in bool_columns):  # Highlight if any column is False
-        return ['background-color: lightcoral'] * len(row)
-    return [''] * len(row)
+# Highlight cells based on their values: green for True, red for False
+def cell_highlight(val):
+    """
+    Apply styles to a single cell based on its value.
+    """
+    if isinstance(val, bool):  # Check only for boolean values
+        color = 'lightgreen' if val else 'lightcoral'
+        return f'background-color: {color}'
+    return ''  # No style for non-boolean cells
+
+
+
 
 # Sort the DataFrame to prioritize rows with False values in the specified order
 df_sorted = df.sort_values(
@@ -151,6 +158,7 @@ df_sorted = df.sort_values(
 
 # Display the table with the specified columns
 columns_to_display = ['name', 'street_db', 'city_db'] + bool_columns + ['Eco-Movement Status']
-styled_table = df_sorted[columns_to_display].style.apply(highlight_false, axis=1)
+# Display the DataFrame with conditional formatting for cells
+styled_table = df_sorted[columns_to_display].style.applymap(cell_highlight, subset=bool_columns)
 st.dataframe(styled_table, use_container_width=True)
 
